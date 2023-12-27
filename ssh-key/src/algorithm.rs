@@ -4,7 +4,10 @@
 mod name;
 
 use crate::{Error, Result};
-use core::{fmt, str};
+use core::{
+    fmt,
+    str::{self, FromStr},
+};
 use encoding::{Label, LabelError};
 
 #[cfg(feature = "alloc")]
@@ -303,6 +306,43 @@ impl str::FromStr for Algorithm {
             #[cfg(not(feature = "alloc"))]
             _ => Err(LabelError::new(id)),
         }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Algorithm {
+    fn serialize<S>(&self, serializer: S) -> core::prelude::v1::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Algorithm {
+    fn deserialize<D>(deserializer: D) -> core::prelude::v1::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct AlgoVis;
+
+        impl<'vde> serde::de::Visitor<'vde> for AlgoVis {
+            type Value = Algorithm;
+
+            fn expecting(&self, formatter: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+                formatter.write_fmt(format_args!("expecting on of {ECDSA_SHA2_P256}, {ECDSA_SHA2_P384}, {ECDSA_SHA2_P521}, {RSA_SHA2_256}, {RSA_SHA2_512}, {SSH_DSA}, {SSH_ED25519}, {SSH_RSA}"))
+            }
+
+            fn visit_str<E>(self, v: &str) -> core::prelude::v1::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Algorithm::from_str(v).map_err(serde::de::Error::custom)?)
+            }
+        }
+
+        deserializer.deserialize_str(AlgoVis)
     }
 }
 
